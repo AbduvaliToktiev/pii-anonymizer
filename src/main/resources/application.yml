@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: pii-anonymizer
+  threads:
+    # Потоковые ответы модели держат соединение минутами — виртуальные потоки это дёшево переносят
+    virtual:
+      enabled: true
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
+
+server:
+  port: 8080
+  # Только этот компьютер. Шлюз подставляет настоящие данные вместо любых меток в ответе,
+  # поэтому доступ из сети позволил бы вытащить ПДн из реестра. Не меняйте без защиты доступа.
+  address: 127.0.0.1
+
+anonymizer:
+  birth-date:
+    # age  — модель видит возраст в полных годах прямо в метке ([BIRTHDATE_n_AGE41]), но не саму дату;
+    # date — только метка, о дате рождения модель не знает ничего
+    mode: age
+
+  pdf:
+    # Путь к TTF-шрифту с кириллицей. Если не задан, используется системный Arial или DejaVu Sans.
+    font-path:
+    font-size: 10
+
+  gateway:
+    # Шлюз для Claude Code (ANTHROPIC_BASE_URL=http://localhost:8080): куда пересылать обезличенные запросы
+    upstream-url: https://api.anthropic.com
+
+  claude:
+    # Модель для /api/ask. Ключ API задаётся переменной окружения ANTHROPIC_API_KEY, не здесь.
+    model: claude-opus-5-5
+    max-tokens: 16000
+    # Глубина рассуждений: low, medium, high, xhigh, max
+    effort: medium

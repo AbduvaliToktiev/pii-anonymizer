@@ -1,0 +1,48 @@
+# Сборка
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+*.log
+logs/
+hs_err_pid*.log
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# ОС
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Секреты: ключ Claude API и прочие переменные окружения
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# Личные настройки Claude Code (адрес шлюза, ключи)
+.claude/settings.local.json
+
+# Файлы с настоящими ПДн: обезличенные копии и результаты прогонов
+anonymized/
+samples/out/
+result.*
+
+# Архивы и резервные копии
+*.tar.gz
+*.zip
+*.bak

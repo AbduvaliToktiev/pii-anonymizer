@@ -1,0 +1,13 @@
+services:
+  pii-anonymizer:
+    build: .
+    image: pii-anonymizer:latest
+    container_name: pii-anonymizer
+    ports:
+      # Только этот компьютер: шлюз отдаёт настоящие ПДн, из сети он доступен быть не должен
+      - "127.0.0.1:8080:8080"
+    environment:
+      # Ключ Claude API для /api/ask. Берётся из файла .env рядом (см. .env.example) или из окружения.
+      # Без ключа работают /api/anonymize и шлюз для Claude Code.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    restart: unless-stopped
