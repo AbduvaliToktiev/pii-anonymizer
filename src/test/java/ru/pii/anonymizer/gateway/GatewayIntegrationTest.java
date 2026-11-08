@@ -224,7 +224,7 @@ class GatewayIntegrationTest {
 
     /** Метка в строке файла: line — номер строки данных (1 или 2), column — 0 для ФИО, 1 для телефона. */
     private static String tokenAfterLine(String body, int line, int column) {
-        Matcher m = Pattern.compile("(\\[PERSON_\\d+]);(\\[PHONE_\\d+]);(\\d+)").matcher(body);
+        Matcher m = Pattern.compile("(\\[PERSON_[0-9A-Z]+]);(\\[PHONE_[0-9A-Z]+]);(\\d+)").matcher(body);
         for (int i = 0; i < line; i++) {
             if (!m.find()) {
                 return "?";

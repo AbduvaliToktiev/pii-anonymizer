@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import ru.pii.anonymizer.Tokens;
 import ru.pii.anonymizer.pseudonym.PseudonymRegistry;
 
 class TextAnonymizerTest {
@@ -16,7 +17,7 @@ class TextAnonymizerTest {
     private final TextAnonymizer anonymizer = new TextAnonymizer(RussianPiiDetectors.all());
 
     private String anonymize(String text) {
-        return anonymizer.anonymize(text, new PseudonymRegistry());
+        return Tokens.renumber(anonymizer.anonymize(text, new PseudonymRegistry()));
     }
 
     @Test
@@ -50,7 +51,7 @@ class TextAnonymizerTest {
         PseudonymRegistry registry = new PseudonymRegistry();
         anonymizer.anonymize("Согласовал Иванов И.И., исполнитель Иванов Иван Иванович", registry);
 
-        assertThat(registry.mapping()).containsExactly(Map.entry("[PERSON_1]", "Иванов Иван Иванович"));
+        assertThat(registry.mapping()).hasSize(1).containsValue("Иванов Иван Иванович");
     }
 
     @Test
@@ -64,7 +65,7 @@ class TextAnonymizerTest {
     void exactSpellingKeepsAbbreviationSeparate() {
         PseudonymRegistry registry = new PseudonymRegistry(true);
 
-        assertThat(anonymizer.anonymize("Иванов Иван Иванович, Иванов И.И.", registry))
+        assertThat(Tokens.renumber(anonymizer.anonymize("Иванов Иван Иванович, Иванов И.И.", registry)))
                 .isEqualTo("[PERSON_1], [PERSON_2]");
     }
 

@@ -1,4 +1,4 @@
-package ru.pii.anonymizer.web;
+package ru.pii.anonymizer.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import ru.pii.anonymizer.Tokens;
 import ru.pii.anonymizer.SampleDocuments;
 import ru.pii.anonymizer.llm.LlmClient;
 import ru.pii.anonymizer.llm.LlmException;
@@ -36,7 +37,7 @@ class AskControllerTest {
     /** Заглушка LLM: сохраняет последнее сообщение и возвращает заданный ответ. */
     static final class FakeLlm implements LlmClient {
         final AtomicReference<String> lastMessage = new AtomicReference<>();
-        volatile String answer = "";
+        volatile java.util.function.UnaryOperator<String> answer = _ -> "";
         volatile boolean fail;
 
         @Override
@@ -45,7 +46,7 @@ class AskControllerTest {
                 throw new LlmException("Claude API вернул ошибку 529");
             }
             lastMessage.set(userMessage);
-            return new LlmReply(answer, "fake-model", 100, 20, false);
+            return new LlmReply(answer.apply(userMessage), "fake-model", 100, 20, false);
         }
     }
 
@@ -76,7 +77,8 @@ class AskControllerTest {
     @Test
     void llmSeesOnlyTokensAndUserGetsRealNames() throws Exception {
         // Петрова — второй человек в таблице, её телефон — второй телефон
-        llm.answer = "Больше всех получает [PERSON_2] — 250000, телефон [PHONE_2]. А вот [PERSON_9] нет в данных.";
+        llm.answer = sent -> "Больше всех получает " + Tokens.actual(sent, "[PERSON_2]") + " — 250000, телефон "
+                + Tokens.actual(sent, "[PHONE_2]") + ". А вот [PERSON_ZZZZZZZZ] нет в данных.";
         var file = new MockMultipartFile("file", "Зарплаты Иванова.xlsx",
                 "application/octet-stream", SampleDocuments.salaryXlsx());
 
@@ -84,13 +86,13 @@ class AskControllerTest {
                         .param("prompt", "Кто получает больше всех? Сколько получает Иванов Иван Иванович?"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answer").value("Больше всех получает Петрова Анна Сергеевна — 250000, "
-                        + "телефон 8 (903) 765-43-21. А вот [PERSON_9] нет в данных."))
+                        + "телефон 8 (903) 765-43-21. А вот [PERSON_ZZZZZZZZ] нет в данных."))
                 .andExpect(jsonPath("$.restored").value(2))
-                .andExpect(jsonPath("$.unknownTokens[0]").value("[PERSON_9]"))
+                .andExpect(jsonPath("$.unknownTokens[0]").value("[PERSON_ZZZZZZZZ]"))
                 .andExpect(jsonPath("$.found.PERSON").value(4))
                 .andExpect(jsonPath("$.sentToLlm").doesNotExist());
 
-        String sent = llm.lastMessage.get();
+        String sent = Tokens.renumber(llm.lastMessage.get());
         assertThat(sent).doesNotContain(SampleDocuments.PII_VALUES);
         assertThat(sent).doesNotContain("Зарплаты Иванова");
         // Вопрос и файл используют общие метки: Иванов из вопроса — это [PERSON_1] из таблицы
@@ -99,16 +101,16 @@ class AskControllerTest {
 
     @Test
     void showAnonymizedReturnsWhatLlmSaw() throws Exception {
-        llm.answer = "Звоните [PHONE_1]";
+        llm.answer = sent -> "Звоните " + Tokens.actual(sent, "[PHONE_1]");
 
         mvc.perform(multipart("/api/ask")
                         .param("prompt", "Позвони Петровой Анне Сергеевне по номеру +7 903 765-43-21")
                         .param("showAnonymized", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answer").value("Звоните +7 903 765-43-21"))
-                .andExpect(jsonPath("$.sentToLlm").value("Позвони [PERSON_1] по номеру [PHONE_1]"))
+                .andExpect(jsonPath("$.sentToLlm").value(Tokens.renumberedEqualTo("Позвони [PERSON_1] по номеру [PHONE_1]")))
                 .andExpect(jsonPath("$.sentToLlm").value(not(containsString("Петров"))))
-                .andExpect(jsonPath("$.llmAnswer").value("Звоните [PHONE_1]"));
+                .andExpect(jsonPath("$.llmAnswer").value(Tokens.renumberedEqualTo("Звоните [PHONE_1]")));
     }
 
     @Test

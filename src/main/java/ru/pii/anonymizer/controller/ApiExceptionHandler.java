@@ -1,4 +1,4 @@
-package ru.pii.anonymizer.web;
+package ru.pii.anonymizer.controller;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +13,7 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 import ru.pii.anonymizer.document.DocumentProcessingException;
 import ru.pii.anonymizer.document.UnsupportedDocumentException;
 import ru.pii.anonymizer.llm.LlmException;
+import ru.pii.anonymizer.service.BadRequestException;
 
 /**
  * Ошибки в формате RFC 9457 (Problem Details). Тексты исключений формируются нами

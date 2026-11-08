@@ -10,4 +10,10 @@ services:
       # Ключ Claude API для /api/ask. Берётся из файла .env рядом (см. .env.example) или из окружения.
       # Без ключа работают /api/anonymize и шлюз для Claude Code.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      # Секретный ключ меток: с ним коды [PERSON_…] одинаковы после пересборки и перезапуска
+      - pii-data:/app/data
     restart: unless-stopped
+
+volumes:
+  pii-data:

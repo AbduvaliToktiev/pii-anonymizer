@@ -12,6 +12,12 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
+import org.apache.poi.sl.extractor.SlideShowExtractor;
+import org.apache.poi.xslf.usermodel.XMLSlideShow;
+import org.apache.poi.xslf.usermodel.XSLFShape;
+import org.apache.poi.xslf.usermodel.XSLFTextParagraph;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.springframework.stereotype.Component;
@@ -27,12 +33,17 @@ public class DocumentTextExtractor {
         return switch (format) {
             case XLSX, XLS -> excel(content);
             case DOCX -> word(content);
+            case DOC -> wordDoc(content);
+            case PPTX -> powerPoint(content);
+            case ODT -> OdtProcessor.text(content);
             case PDF -> pdf(content);
         };
     }
 
     private static String excel(byte[] content) throws IOException {
         DataFormatter formatter = new DataFormatter();
+        // Модели нужны значения: у формул — сохранённый (уже обезличенный) результат, а не текст формулы
+        formatter.setUseCachedValuesForFormulaCells(true);
         StringBuilder sb = new StringBuilder();
         try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(content))) {
             for (Sheet sheet : workbook) {
@@ -57,6 +68,23 @@ public class DocumentTextExtractor {
     private static String word(byte[] content) throws IOException {
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(content));
              XWPFWordExtractor extractor = new XWPFWordExtractor(doc)) {
+            return extractor.getText().strip();
+        }
+    }
+
+    private static String wordDoc(byte[] content) throws IOException {
+        try (HWPFDocument doc = new HWPFDocument(new ByteArrayInputStream(content));
+             WordExtractor extractor = new WordExtractor(doc)) {
+            return extractor.getText().strip();
+        }
+    }
+
+    /** Слайды по порядку, с заметками докладчика. */
+    private static String powerPoint(byte[] content) throws IOException {
+        try (XMLSlideShow show = new XMLSlideShow(new ByteArrayInputStream(content));
+             SlideShowExtractor<XSLFShape, XSLFTextParagraph> extractor = new SlideShowExtractor<>(show)) {
+            extractor.setSlidesByDefault(true);
+            extractor.setNotesByDefault(true);
             return extractor.getText().strip();
         }
     }

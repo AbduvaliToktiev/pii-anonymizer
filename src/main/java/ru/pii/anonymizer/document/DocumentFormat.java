@@ -12,6 +12,9 @@ public enum DocumentFormat {
     XLSX("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Signature.ZIP),
     XLS("xls", "application/vnd.ms-excel", Signature.OLE2),
     DOCX("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Signature.ZIP),
+    DOC("doc", "application/msword", Signature.OLE2),
+    PPTX("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", Signature.ZIP),
+    ODT("odt", "application/vnd.oasis.opendocument.text", Signature.ZIP),
     PDF("pdf", "application/pdf", Signature.PDF);
 
     private enum Signature {
@@ -55,7 +58,7 @@ public enum DocumentFormat {
                 .filter(f -> f.extension.equals(ext))
                 .findFirst()
                 .orElseThrow(() -> new UnsupportedDocumentException(
-                        "Формат «." + ext + "» не поддерживается. Поддерживаются: xlsx, xls, docx, pdf"));
+                        "Формат «." + ext + "» не поддерживается. Поддерживаются: xlsx, xls, docx, doc, pptx, odt, pdf"));
         if (!format.signature.matches(content)) {
             throw new UnsupportedDocumentException(
                     "Содержимое файла не похоже на ." + ext + " — возможно, файл повреждён или переименован");

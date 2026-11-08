@@ -42,7 +42,7 @@ class WordProcessorTest {
                     .orElseThrow();
             List<XWPFRun> runs = paragraph.getRuns();
 
-            assertThat(paragraph.getText()).matches("Ответственный: \\[PERSON_\\d+], тел\\. \\[PHONE_\\d+]\\.");
+            assertThat(paragraph.getText()).matches("Ответственный: \\[PERSON_[0-9A-Z]+], тел\\. \\[PHONE_[0-9A-Z]+]\\.");
             assertThat(runs.get(0).text()).startsWith("Ответственный: [PERSON_");
             assertThat(runs.get(1).text()).isEmpty();
             assertThat(runs.get(2).text()).isEmpty();
@@ -56,7 +56,7 @@ class WordProcessorTest {
         String text = DocumentText.word(processor.process(SampleDocuments.contractDocx(), new PseudonymRegistry()));
 
         // «Петрова Анна Сергеевна» из разбитого на фрагменты абзаца и из таблицы — одна метка
-        Matcher m = Pattern.compile("Ответственный: (\\[PERSON_\\d+])").matcher(text);
+        Matcher m = Pattern.compile("Ответственный: (\\[PERSON_[0-9A-Z]+])").matcher(text);
         assertThat(m.find()).isTrue();
         String token = m.group(1);
         assertThat(text.split(Pattern.quote(token), -1)).hasSize(3);

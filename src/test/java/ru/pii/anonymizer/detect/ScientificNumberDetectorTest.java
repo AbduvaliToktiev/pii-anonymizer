@@ -11,6 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import ru.pii.anonymizer.Tokens;
 import ru.pii.anonymizer.pseudonym.PseudonymRegistry;
 
 /** Идентификаторы в научной нотации — так их хранит Excel внутри xlsx. */
@@ -26,7 +27,7 @@ class ScientificNumberDetectorTest {
             "карта 4.111111111111111E15                 | карта [CARD_1]",
     })
     void identifiersInScientificNotationAreFound(String input, String expected) {
-        assertThat(anonymizer.anonymize(input, new PseudonymRegistry())).isEqualTo(expected);
+        assertThat(Tokens.renumber(anonymizer.anonymize(input, new PseudonymRegistry()))).isEqualTo(expected);
     }
 
     @Test
@@ -45,7 +46,7 @@ class ScientificNumberDetectorTest {
 
         String result = anonymizer.anonymize(text, new PseudonymRegistry());
 
-        List<String> tokens = Pattern.compile("\\[INN_\\d+]").matcher(result).results()
+        List<String> tokens = Pattern.compile("\\[INN_[0-9A-Z]+]").matcher(result).results()
                 .map(MatchResult::group).toList();
         assertThat(tokens).hasSize(3).containsOnly(tokens.getFirst());
     }

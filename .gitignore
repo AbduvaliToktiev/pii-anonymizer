@@ -20,12 +20,14 @@ hs_err_pid*.log
 .classpath
 .factorypath
 
-# ОС
+# ОС и временные файлы Office (~$Книга.xlsx, пока файл открыт)
+~$*
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Секреты: ключ Claude API и прочие переменные окружения
+# Секреты: ключ меток, ключ Claude API и прочие переменные окружения
+data/
 .env
 .env.*
 !.env.example

@@ -16,15 +16,13 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q package -DskipTests \
 # ---------- запуск: только JRE 25 ----------
 FROM eclipse-temurin:25-jre-noble
 
-# Шрифт с кириллицей для обезличенных PDF (Arial в Linux нет, сервис берёт DejaVu Sans)
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends fonts-dejavu-core \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN useradd --system --uid 10001 --no-create-home app
+RUN useradd --system --uid 10001 --no-create-home app \
+    && mkdir -p /app/data && chown app /app/data
 WORKDIR /app
 COPY --from=build /build/app.jar app.jar
 USER app
+# Ключ меток (data/token.key) создаётся при первом запуске; том сохраняет его между пересборками
+VOLUME /app/data
 
 # В application.yml сервис слушает только 127.0.0.1. В контейнере это сделало бы его недоступным,
 # поэтому внутри слушаем все интерфейсы, а наружу порт публикуется только на 127.0.0.1 хоста

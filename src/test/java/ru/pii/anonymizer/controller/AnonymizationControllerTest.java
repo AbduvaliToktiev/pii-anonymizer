@@ -1,4 +1,4 @@
-package ru.pii.anonymizer.web;
+package ru.pii.anonymizer.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import ru.pii.anonymizer.Tokens;
 import ru.pii.anonymizer.SampleDocuments;
 
 @SpringBootTest
@@ -32,6 +33,25 @@ class AnonymizationControllerTest {
     void setUp() {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
     }
+
+    @Test
+    void fileIsAnonymizedWithServiceKeyCodes() throws Exception {
+        var file = new MockMultipartFile("file", "Приказ.pptx", "application/octet-stream",
+                ru.pii.anonymizer.LargeSamples.presentationPptx());
+
+        MvcResult result = mvc.perform(multipart("/api/anonymize").file(file))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        // Коды вычислены ключом сервиса: те же, что выдаёт реестр из настроек
+        String expected = registries.create().tokenFor(ru.pii.anonymizer.detect.PiiType.PHONE, "+7 916 123-45-67");
+        assertThat(new String(new ru.pii.anonymizer.document.DocumentTextExtractor().toText(
+                ru.pii.anonymizer.document.DocumentFormat.PPTX, result.getResponse().getContentAsByteArray())))
+                .contains(expected);
+    }
+
+    @Autowired
+    private ru.pii.anonymizer.pseudonym.PseudonymRegistryFactory registries;
 
     @Test
     void uploadXlsxReturnsAnonymizedFileWithSummary() throws Exception {
@@ -74,7 +94,7 @@ class AnonymizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"Звонить Иванову Ивану Ивановичу: +7 916 123-45-67\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.text").value("Звонить [PERSON_1]: [PHONE_1]"))
+                .andExpect(jsonPath("$.text").value(Tokens.renumberedEqualTo("Звонить [PERSON_1]: [PHONE_1]")))
                 .andExpect(jsonPath("$.replacements").value(2));
     }
 }

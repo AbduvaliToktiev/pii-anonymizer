@@ -22,11 +22,6 @@ anonymizer:
     # date — только метка, о дате рождения модель не знает ничего
     mode: age
 
-  pdf:
-    # Путь к TTF-шрифту с кириллицей. Если не задан, используется системный Arial или DejaVu Sans.
-    font-path:
-    font-size: 10
-
   gateway:
     # Шлюз для Claude Code (ANTHROPIC_BASE_URL=http://localhost:8080): куда пересылать обезличенные запросы
     upstream-url: https://api.anthropic.com

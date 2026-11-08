@@ -31,10 +31,17 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
-        <!-- Excel (xls, xlsx) и Word (docx) -->
+        <!-- Excel (xls, xlsx), Word (docx) и PowerPoint (pptx) -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
+        </dependency>
+
+        <!-- Word 97–2003 (doc) -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-scratchpad</artifactId>
             <version>${poi.version}</version>
         </dependency>
 
@@ -64,6 +71,16 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <!-- Ключ меток для тестов — в target, а не в data/ рабочей копии -->
+                        <anonymizer.token.key-file>${project.build.directory}/test-token.key</anonymizer.token.key-file>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

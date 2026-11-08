@@ -6,10 +6,15 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.poi.EncryptedDocumentException;
+import org.apache.poi.hssf.model.InternalWorkbook;
+import org.apache.poi.hssf.record.common.UnicodeString;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.hpsf.SummaryInformation;
 import org.apache.poi.ooxml.POIXMLProperties;
@@ -17,12 +22,18 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Comment;
 import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.HeaderFooter;
 import org.apache.poi.ss.usermodel.Hyperlink;
+import org.apache.poi.ss.usermodel.RichTextString;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFRichTextString;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTPhoneticRun;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTRElt;
+import org.openxmlformats.schemas.spreadsheetml.x2006.main.CTRst;
 import org.springframework.stereotype.Component;
 
 import ru.pii.anonymizer.detect.BirthDateDetector;
@@ -39,9 +50,11 @@ import ru.pii.anonymizer.pseudonym.PseudonymRegistry;
  *   <li>Колонки по заголовку заменяются целиком: «ФИО», «Фамилия», «Сотрудник» — если значение
  *       похоже на имя; «Дата рождения» — если значение дата (в том числе ячейка формата «дата»);
  *       «Адрес», «Место жительства» — любой текст. Остальное в этих колонках проверяется детекторами.</li>
- *   <li>Формула, в кэше которой есть ПДн, заменяется обезличенным значением:
- *       кэш хранится в файле и прочитался бы любым парсером.</li>
- *   <li>Обрабатываются примечания к ячейкам, гиперссылки и автор документа в метаданных.</li>
+ *   <li>Формулы остаются формулами. Если в сохранённом результате формулы есть ПДн («=Лист1!B2» с ФИО),
+ *       обезличивается только этот результат; строки в кавычках внутри формулы — тоже. Так как одно значение
+ *       везде получает одну метку, ВПР, СУММЕСЛИ и СЧЁТЕСЛИ по ФИО на обезличенном файле считают то же самое.
+ *       Файл помечается на пересчёт при открытии.</li>
+ *   <li>Обрабатываются примечания к ячейкам, гиперссылки, колонтитулы листов и автор документа в метаданных.</li>
  * </ul>
  */
 @Component
@@ -61,6 +74,9 @@ public class ExcelProcessor implements DocumentProcessor {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
+    /** Строка в формуле: кавычки внутри удваиваются. */
+    private static final Pattern FORMULA_STRING = Pattern.compile("\"((?:[^\"]|\"\")*)\"");
+
     private static final Pattern NAME_LIKE = Pattern.compile("\\s*\\p{L}[\\p{L}.\\-' ]{1,80}");
 
     private final TextAnonymizer anonymizer;
@@ -79,11 +95,15 @@ public class ExcelProcessor implements DocumentProcessor {
         try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(content))) {
             for (Sheet sheet : workbook) {
                 processSheet(workbook, sheet, registry);
+                processHeaderFooter(sheet.getHeader(), registry);
+                processHeaderFooter(sheet.getFooter(), registry);
             }
             clearAuthor(workbook);
+            dropUnusedStrings(workbook);
+            workbook.setForceFormulaRecalculation(true);
             ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
             workbook.write(out);
-            return out.toByteArray();
+            return workbook instanceof XSSFWorkbook ? XlsxSharedStrings.compact(out.toByteArray()) : out.toByteArray();
         } catch (EncryptedDocumentException e) {
             throw new DocumentProcessingException("Файл защищён паролем — снимите защиту и загрузите снова", e);
         }
@@ -113,11 +133,16 @@ public class ExcelProcessor implements DocumentProcessor {
             if (original != null) {
                 String anonymized = anonymizer.anonymize(original, registry);
                 if (!anonymized.equals(original)) {
-                    if (cell.getCellType() == CellType.FORMULA) {
-                        cell.removeFormula();
-                    }
+                    // У формулы меняется только сохранённый результат, сама формула остаётся
                     cell.setCellValue(anonymized);
                 }
+            }
+        }
+        if (cell.getCellType() == CellType.FORMULA) {
+            String formula = cell.getCellFormula();
+            String anonymizedFormula = anonymizeFormulaLiterals(formula, registry);
+            if (!anonymizedFormula.equals(formula)) {
+                cell.setCellFormula(anonymizedFormula);
             }
         }
 
@@ -134,6 +159,37 @@ public class ExcelProcessor implements DocumentProcessor {
                 comment.setString(workbook.getCreationHelper().createRichTextString(anonymized));
             }
             comment.setAuthor("");
+        }
+    }
+
+    /** Строки в кавычках внутри формулы: {@code ВПР("Иванов Иван";…)} → {@code ВПР("[PERSON_…]";…)}. */
+    private String anonymizeFormulaLiterals(String formula, PseudonymRegistry registry) {
+        Matcher m = FORMULA_STRING.matcher(formula);
+        StringBuilder sb = new StringBuilder(formula.length());
+        while (m.find()) {
+            String literal = m.group(1).replace("\"\"", "\"");
+            String anonymized = anonymizer.anonymize(literal, registry);
+            m.appendReplacement(sb, Matcher.quoteReplacement("\"" + anonymized.replace("\"", "\"\"") + "\""));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    private void processHeaderFooter(HeaderFooter hf, PseudonymRegistry registry) {
+        if (hf == null) {
+            return;
+        }
+        String left = hf.getLeft();
+        String center = hf.getCenter();
+        String right = hf.getRight();
+        if (left != null && !left.isEmpty()) {
+            hf.setLeft(anonymizer.anonymize(left, registry));
+        }
+        if (center != null && !center.isEmpty()) {
+            hf.setCenter(anonymizer.anonymize(center, registry));
+        }
+        if (right != null && !right.isEmpty()) {
+            hf.setRight(anonymizer.anonymize(right, registry));
         }
     }
 
@@ -167,7 +223,9 @@ public class ExcelProcessor implements DocumentProcessor {
         if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
             return columnType == PiiType.BIRTHDATE ? cell.getLocalDateTimeCellValue().toLocalDate().format(DATE) : null;
         }
-        if (cell.getCellType() != CellType.STRING) {
+        boolean text = cell.getCellType() == CellType.STRING
+                || cell.getCellType() == CellType.FORMULA && cell.getCachedFormulaResultType() == CellType.STRING;
+        if (!text) {
             return null;
         }
         String value = cell.getStringCellValue();
@@ -204,6 +262,55 @@ public class ExcelProcessor implements DocumentProcessor {
                 columns.put(cell.getColumnIndex(), PiiType.BIRTHDATE);
             } else if (ADDRESS_COLUMN_HEADER.matcher(name).matches()) {
                 columns.put(cell.getColumnIndex(), PiiType.ADDRESS);
+            }
+        }
+    }
+
+    /**
+     * Excel хранит текст ячеек в общей таблице строк, и POI не удаляет из неё строки, которые больше
+     * никто не использует. После замены ФИО на метку исходное ФИО осталось бы в файле — невидимым
+     * в Excel, но читаемым любым парсером. Такие строки очищаются; ссылки ячеек на таблицу не меняются.
+     */
+    private static void dropUnusedStrings(Workbook workbook) {
+        Set<String> used = new HashSet<>();
+        for (Sheet sheet : workbook) {
+            for (Row row : sheet) {
+                for (Cell cell : row) {
+                    if (cell.getCellType() == CellType.STRING) {
+                        used.add(cell.getStringCellValue());
+                    }
+                }
+            }
+        }
+        switch (workbook) {
+            case XSSFWorkbook xssf -> {
+                for (RichTextString item : xssf.getSharedStringSource().getSharedStringItems()) {
+                    if (item instanceof XSSFRichTextString rich && !used.contains(rich.getString())) {
+                        CTRst rst = rich.getCTRst();
+                        rst.setRArray(new CTRElt[0]);
+                        rst.setRPhArray(new CTPhoneticRun[0]);
+                        rst.setT("");
+                    }
+                }
+            }
+            case HSSFWorkbook hssf -> {
+                InternalWorkbook internal = hssf.getInternalWorkbook();
+                for (int i = 0; ; i++) {
+                    UnicodeString item;
+                    try {
+                        item = internal.getSSTString(i);
+                    } catch (IndexOutOfBoundsException end) {
+                        break;
+                    }
+                    if (item == null) {
+                        break;
+                    }
+                    if (!used.contains(item.getString())) {
+                        item.setString("");
+                    }
+                }
+            }
+            default -> {
             }
         }
     }

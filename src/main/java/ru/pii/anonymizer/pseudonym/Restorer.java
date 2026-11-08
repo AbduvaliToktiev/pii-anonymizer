@@ -24,8 +24,9 @@ public final class Restorer {
     public record Result(String text, int restored, Set<String> unknown) {
     }
 
-    /** Метка целиком: {@code [PERSON_12]}. */
-    public static final Pattern TOKEN = Pattern.compile("\\[(?:" + typeAlternatives() + ")_\\d+(?:_AGE\\d{1,3})?]");
+    /** Метка целиком: {@code [PERSON_K7M2QX9D]}, у даты рождения — с возрастом: {@code [BIRTHDATE_K7M2QX9D_AGE41]}. */
+    public static final Pattern TOKEN = Pattern.compile(
+            "\\[(?:" + typeAlternatives() + ")_[0-9A-HJKMNP-TV-Z]{8,16}(?:_AGE\\d{1,3})?]");
 
     private Restorer() {
     }

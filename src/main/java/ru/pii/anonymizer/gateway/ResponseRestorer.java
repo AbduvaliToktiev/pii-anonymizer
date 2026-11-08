@@ -29,18 +29,18 @@ import ru.pii.anonymizer.pseudonym.Restorer;
  * или запускает команду с меткой {@code [PERSON_1]}, на компьютер пользователя она придёт уже
  * с настоящим значением. Блоки размышлений не меняются — они подписаны моделью.
  */
-final class ResponseRestorer {
+public final class ResponseRestorer {
 
     private final ObjectMapper json;
     private final PseudonymRegistry registry;
 
-    ResponseRestorer(ObjectMapper json, PseudonymRegistry registry) {
+    public ResponseRestorer(ObjectMapper json, PseudonymRegistry registry) {
         this.json = json;
         this.registry = registry;
     }
 
     /** Обычный (не потоковый) ответ Messages API. */
-    byte[] restoreMessage(byte[] body) throws IOException {
+    public byte[] restoreMessage(byte[] body) throws IOException {
         JsonNode root = json.readTree(body);
         if (root.path("content") instanceof ArrayNode blocks) {
             for (JsonNode block : blocks) {
@@ -69,7 +69,7 @@ final class ResponseRestorer {
      * Потоковый ответ: события читаются по одному, кусочки текста и аргументов инструментов
      * восстанавливаются с учётом меток, разорванных между событиями, и сразу отдаются клиенту.
      */
-    void restoreStream(InputStream upstream, OutputStream client) throws IOException {
+    public void restoreStream(InputStream upstream, OutputStream client) throws IOException {
         Map<Integer, StreamingRestorer> textBlocks = new HashMap<>();
         Map<Integer, StreamingRestorer> jsonBlocks = new HashMap<>();
         UnaryOperator<String> asJsonString = this::jsonEscape;

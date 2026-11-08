@@ -22,6 +22,13 @@ class SampleFilesWriter {
         Files.write(dir.resolve("Зарплаты.xlsx"), SampleDocuments.salaryXlsx());
         Files.write(dir.resolve("Зарплаты.xls"), SampleDocuments.salaryXls());
         Files.write(dir.resolve("Трудовой договор.docx"), SampleDocuments.contractDocx());
+        Files.write(dir.resolve("Сотрудники_10000.xlsx"),
+                LargeSamples.staff(new org.apache.poi.xssf.usermodel.XSSFWorkbook(), 10_000).content());
+        Files.write(dir.resolve("Сотрудники_3000.xls"),
+                LargeSamples.staff(new org.apache.poi.hssf.usermodel.HSSFWorkbook(), 3_000).content());
+        Files.write(dir.resolve("Итоги квартала.pptx"), LargeSamples.presentationPptx());
+        // doc и odt из этого файла делает Word: см. README, раздел «Примеры»
+        Files.write(dir.resolve("Приказ о премировании.docx"), LargeSamples.orderDocx());
         SampleDocuments.systemFont().ifPresent(font -> {
             try {
                 Files.write(dir.resolve("Служебная записка.pdf"), SampleDocuments.memoPdf(font));

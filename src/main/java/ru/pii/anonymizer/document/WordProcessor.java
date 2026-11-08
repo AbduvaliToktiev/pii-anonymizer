@@ -26,11 +26,9 @@ import ru.pii.anonymizer.pseudonym.PseudonymRegistry;
 /**
  * Обезличивание Word (docx) с сохранением форматирования.
  *
- * <p>Главная сложность: Word разбивает текст абзаца на фрагменты (runs) с разным оформлением,
- * и одно ФИО может оказаться в трёх фрагментах — «Ива», «нов Иван», «ович». Поэтому поиск
- * идёт по склеенному тексту всего абзаца, а замена раскладывается обратно по фрагментам:
- * метка пишется в первый фрагмент совпадения, остаток совпадения удаляется из следующих.
- * Оформление первого фрагмента переходит на метку, остальной текст сохраняет своё.
+ * <p>Word разбивает текст абзаца на фрагменты (runs) с разным оформлением, и одно ФИО может
+ * оказаться в нескольких фрагментах. Поиск идёт по склеенному тексту абзаца, замена
+ * раскладывается обратно по фрагментам — см. {@link TextRuns}.
  *
  * <p>Обходятся основной текст, таблицы (включая вложенные), колонтитулы и сноски;
  * из метаданных удаляется автор.
@@ -100,64 +98,20 @@ public class WordProcessor implements DocumentProcessor {
         if (runs.isEmpty()) {
             return;
         }
-
         String[] texts = new String[runs.size()];
-        int[] offsets = new int[runs.size()];
-        int[] lengths = new int[runs.size()];
-        StringBuilder full = new StringBuilder();
         for (int i = 0; i < runs.size(); i++) {
             texts[i] = textOf(runs.get(i));
-            offsets[i] = full.length();
-            lengths[i] = texts[i].length();
-            full.append(texts[i]);
         }
-
-        List<Replacement> plan = anonymizer.plan(full.toString(), registry);
+        List<Replacement> plan = anonymizer.plan(TextRuns.join(texts), registry);
         if (plan.isEmpty()) {
             return;
         }
-
-        boolean[] changed = new boolean[runs.size()];
-        // С конца: замена не сдвигает позиции более ранних совпадений
-        for (Replacement r : plan.reversed()) {
-            int first = runAt(offsets, lengths, r.start());
-            int last = runAt(offsets, lengths, r.end() - 1);
-            int startInFirst = r.start() - offsets[first];
-            int endInLast = r.end() - offsets[last];
-
-            if (first == last) {
-                texts[first] = texts[first].substring(0, startInFirst) + r.token()
-                        + texts[first].substring(endInLast);
-            } else {
-                texts[last] = texts[last].substring(endInLast);
-                for (int i = first + 1; i < last; i++) {
-                    texts[i] = "";
-                    changed[i] = true;
-                }
-                texts[first] = texts[first].substring(0, startInFirst) + r.token();
-                changed[last] = true;
-            }
-            changed[first] = true;
-        }
-
+        String[] changed = TextRuns.apply(texts, plan);
         for (int i = 0; i < runs.size(); i++) {
-            if (changed[i]) {
-                setText(runs.get(i), texts[i]);
+            if (changed[i] != texts[i]) {
+                setText(runs.get(i), changed[i]);
             }
         }
-    }
-
-    /**
-     * Индекс фрагмента, в который попадает символ с позицией {@code position} склеенного текста.
-     * Используются исходные длины: тексты фрагментов меняются по ходу замен.
-     */
-    private static int runAt(int[] offsets, int[] lengths, int position) {
-        for (int i = 0; i < offsets.length; i++) {
-            if (position >= offsets[i] && position < offsets[i] + lengths[i]) {
-                return i;
-            }
-        }
-        throw new IllegalStateException("Позиция " + position + " вне текста абзаца");
     }
 
     /** Весь текст фрагмента: внутри одного run может быть несколько элементов w:t. */

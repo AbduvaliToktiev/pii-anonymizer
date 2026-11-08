@@ -6,6 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import ru.pii.anonymizer.Tokens;
 import ru.pii.anonymizer.pseudonym.PseudonymRegistry;
 
 /** Имена без словаря — через полный набор детекторов, как в реальной работе. */
@@ -14,7 +15,7 @@ class CapitalizedNameDetectorTest {
     private final TextAnonymizer anonymizer = new TextAnonymizer(RussianPiiDetectors.all());
 
     private String anonymize(String text) {
-        return anonymizer.anonymize(text, new PseudonymRegistry());
+        return Tokens.renumber(anonymizer.anonymize(text, new PseudonymRegistry()));
     }
 
     @ParameterizedTest

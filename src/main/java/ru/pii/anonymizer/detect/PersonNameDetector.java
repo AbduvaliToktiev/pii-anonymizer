@@ -30,10 +30,14 @@ public final class PersonNameDetector implements PiiDetector {
 
     private static final Pattern NAME_AND_PATRONYMIC = compile(
             NOT_LETTER_BEFORE + NAME + "\\s+" + PATRONYMIC + NOT_LETTER_AFTER);
+    /**
+     * Фамилия — только в той же строке: в таблице, выведенной построчно, следующая ячейка
+     * («Иван Иванович» ↵ «Продажи») — не фамилия, а настоящая фамилия стоит перед именем.
+     */
     private static final Pattern SURNAME_AFTER = compile(
-            "\\s+" + SURNAME + NOT_LETTER_AFTER);
+            "\\h+" + SURNAME + NOT_LETTER_AFTER);
     private static final Pattern SURNAME_BEFORE = compile(
-            NOT_LETTER_BEFORE + SURNAME + "\\s+$");
+            NOT_LETTER_BEFORE + SURNAME + "\\h+$");
     private static final String INITIALS = UPPER + "\\.\\s?" + UPPER + "\\.";
     private static final Pattern SURNAME_THEN_INITIALS = compile(
             NOT_LETTER_BEFORE + "(?<surname>" + SURNAME + ")\\s+" + INITIALS);
@@ -58,15 +62,18 @@ public final class PersonNameDetector implements PiiDetector {
             int end = core.end();
 
             Matcher after = SURNAME_AFTER.matcher(text).region(end, text.length());
-            if (after.lookingAt()) {
+            boolean hasAfter = after.lookingAt();
+            int from = Math.max(0, start - LOOK_BEHIND_CHARS);
+            Matcher before = SURNAME_BEFORE.matcher(text).region(from, start);
+            before.useTransparentBounds(true);
+            boolean hasBefore = before.find() && !Surnames.isNever(before.group().strip());
+            // «Иванов Иван Иванович Продажи» (строка таблицы): фамилия — то слово, что похоже на неё по окончанию
+            boolean preferBefore = hasBefore && Surnames.looksLike(before.group().strip())
+                    && !(hasAfter && Surnames.looksLike(after.group().strip()));
+            if (hasAfter && !preferBefore) {
                 end = after.end();
-            } else {
-                int from = Math.max(0, start - LOOK_BEHIND_CHARS);
-                Matcher before = SURNAME_BEFORE.matcher(text).region(from, start);
-                before.useTransparentBounds(true);
-                if (before.find() && !Surnames.isNever(before.group().strip())) {
-                    start = before.start();
-                }
+            } else if (hasBefore) {
+                start = before.start();
             }
             findings.add(new Finding(PiiType.PERSON, start, end, text.substring(start, end)));
             core.region(end, text.length());

@@ -7,6 +7,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import ru.pii.anonymizer.Tokens;
 import ru.pii.anonymizer.pseudonym.PseudonymRegistry;
 
 /** Адреса, даты рождения и колонки таблиц — через полный набор детекторов. */
@@ -15,7 +16,7 @@ class AddressAndBirthDateTest {
     private final TextAnonymizer anonymizer = new TextAnonymizer(RussianPiiDetectors.all());
 
     private String anonymize(String text) {
-        return anonymizer.anonymize(text, new PseudonymRegistry());
+        return Tokens.renumber(anonymizer.anonymize(text, new PseudonymRegistry()));
     }
 
     @ParameterizedTest

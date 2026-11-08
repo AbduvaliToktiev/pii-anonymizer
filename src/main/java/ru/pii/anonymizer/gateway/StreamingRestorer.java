@@ -16,9 +16,9 @@ import ru.pii.anonymizer.pseudonym.Restorer;
  */
 final class StreamingRestorer {
 
-    /** Незавершённая метка в конце текста: «[», «[PER», «[BIRTHDAT», «[PERSON_», «[PERSON_1». */
+    /** Незавершённая метка в конце текста: «[», «[PER», «[BIRTHDAT», «[PERSON_», «[PERSON_K7M2». */
     private static final Pattern PARTIAL_TOKEN_AT_END = Pattern.compile(
-            "\\[[A-Z]{0,12}(?:_\\d{0,6}(?:_[A-Z]{0,3}\\d{0,3})?)?$"); // хвост «_AGE41» у даты рождения
+            "\\[[A-Z]{0,12}(?:_[0-9A-Z]{0,16}(?:_[A-Z]{0,3}\\d{0,3})?)?$"); // хвост «_AGE41» у даты рождения
 
     private final Function<String, String> originalOf;
     private final UnaryOperator<String> encode;

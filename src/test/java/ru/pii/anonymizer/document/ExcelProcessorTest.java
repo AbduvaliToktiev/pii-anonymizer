@@ -14,6 +14,7 @@ import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
+import ru.pii.anonymizer.Tokens;
 import ru.pii.anonymizer.SampleDocuments;
 import ru.pii.anonymizer.detect.RussianPiiDetectors;
 import ru.pii.anonymizer.detect.TextAnonymizer;
@@ -25,7 +26,7 @@ class ExcelProcessorTest {
 
     @Test
     void xlsxContainsNoPiiAfterProcessing() throws IOException {
-        String text = DocumentText.excel(processor.process(SampleDocuments.salaryXlsx(), new PseudonymRegistry()));
+        String text = Tokens.renumber(DocumentText.excel(processor.process(SampleDocuments.salaryXlsx(), new PseudonymRegistry())));
 
         assertThat(text).doesNotContain(SampleDocuments.PII_VALUES);
         assertThat(text).contains(SampleDocuments.KEPT_VALUES);
@@ -53,14 +54,14 @@ class ExcelProcessorTest {
 
     @Test
     void phoneFromNoteGetsSameTokenAsInTable() throws IOException {
-        String text = DocumentText.excel(processor.process(SampleDocuments.salaryXlsx(), new PseudonymRegistry()));
+        String text = Tokens.renumber(DocumentText.excel(processor.process(SampleDocuments.salaryXlsx(), new PseudonymRegistry())));
 
         // +7 916 123-45-67 в таблице и 8-916-123-45-67 в примечании — один и тот же номер
         assertThat(text).contains("тел. [PHONE_1]");
     }
 
     @Test
-    void formulaWithPiiInCachedValueIsReplaced() throws IOException {
+    void formulaWithPiiInCachedValueKeepsFormulaAndGetsAnonymizedResult() throws IOException {
         byte[] source;
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet();
@@ -76,8 +77,11 @@ class ExcelProcessorTest {
 
         try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(result))) {
             var cell = workbook.getSheetAt(0).getRow(1).getCell(0);
-            assertThat(cell.getCellType()).isEqualTo(CellType.STRING);
-            assertThat(cell.getStringCellValue()).isEqualTo("Контакт: [EMAIL_1]");
+            assertThat(cell.getCellType()).isEqualTo(CellType.FORMULA);
+            assertThat(cell.getCellFormula()).isEqualTo("A1");
+            assertThat(Tokens.renumber(cell.getStringCellValue())).isEqualTo("Контакт: [EMAIL_1]");
+            assertThat(workbook.getSheetAt(0).getRow(0).getCell(0).getStringCellValue())
+                    .isEqualTo(cell.getStringCellValue());
         }
     }
 }

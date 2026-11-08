@@ -29,7 +29,7 @@ import ru.pii.anonymizer.pseudonym.PseudonymRegistry;
  *   <li>Определения инструментов и служебные поля (идентификаторы, типы, подписи) не меняются.</li>
  * </ul>
  */
-final class MessagesAnonymizer {
+public final class MessagesAnonymizer {
 
     static final String IMAGE_REMOVED = "[Изображение не передано: PII-шлюз не умеет обезличивать картинки]";
     static final String DOCUMENT_REMOVED = "[Документ не передан: PII-шлюз не смог извлечь из него текст для обезличивания]";
@@ -43,13 +43,13 @@ final class MessagesAnonymizer {
     private final DocumentTextExtractor extractor;
     private final PseudonymRegistry registry;
 
-    MessagesAnonymizer(TextAnonymizer anonymizer, DocumentTextExtractor extractor, PseudonymRegistry registry) {
+    public MessagesAnonymizer(TextAnonymizer anonymizer, DocumentTextExtractor extractor, PseudonymRegistry registry) {
         this.anonymizer = anonymizer;
         this.extractor = extractor;
         this.registry = registry;
     }
 
-    void anonymize(ObjectNode request) {
+    public void anonymize(ObjectNode request) {
         JsonNode system = request.get("system");
         if (system != null) {
             request.set("system", anonymizeContent(system));
